@@ -1,0 +1,1172 @@
+\documentclass[doc]{apa6}
+%\documentclass[man, floatsintext]{apa6}
+\usepackage{apacite}
+\usepackage{natbib}
+\usepackage[inline]{enumitem}
+\setlength{\bibsep}{0.0pt}
+\usepackage{epstopdf}% To incorporate .eps 
+\usepackage{amsmath}
+\usepackage{mathtools}
+\usepackage{arydshln}
+\usepackage{graphicx,psfrag,epsf}
+\usepackage{setspace}
+\usepackage{enumitem}  
+\usepackage{multirow}
+\usepackage{wasysym}
+\setlist[enumerate]{noitemsep}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.5}
+\usepackage{comment}
+\usepackage{url}  
+\usepackage{tikz}
+\usetikzlibrary{arrows,shapes,positioning,fit,arrows.meta}
+%\tikzset{>={Latex[width=01.5mm,length=01.5mm]}}
+%\tikzset{>={Stealth[scale = 1.3]}}
+\title{Gain Scores, ANCOVA, and Propensity Matching Procedures\\ \vspace{.2cm} for Evaluating Treatments in Education}
+\shorttitle{Gains, Covariates, and Propensity}
+\author{Daniel B.~Wright}
+\leftheader{Wright, D.~B.}
+\affiliation{University of Nevada, Las Vegas}
+\abstract{Researchers have several options available to analyze data from interventions when participants have not been randomly allocated into conditions. Among these are the gain score, ANCOVA, and propensity matching procedures. Each of these attempts to account for pre-treatment differences among the conditions, but they do so differently. These procedures are reviewed and methods for estimating them in \textsf{R} are shown. The choice of which of these procedures to use can be difficult. Different situations are shown where they perform differently. The primary conclusion of this paper is that models should be hypothesized for how the data may arise, data simulated for these models, and the properties of statistical procedures evaluated. A goal of this paper is to show these procedures without extensive mathematics in order to allow a broad readership to use these methods in their situations.}
+\keywords{Propensity Matching, ANCOVA, Gain scores, Lord's paradox, Causality, Graphs, Simulation}
+\authornote{Thanks to Sarah Wells and the reviewers for helpful comments on an earlier draft.
+\\ Department of Educational Psychology \& Higher Education, College of Education, University of Nevada, Las Vegas. Daniel Wright is the Dunn Family Endowed Chair and Professor of Educational Assessment. This research received no funding beyond the endowment.\\ 
+Email: daniel.wright@unlv.edu or dbrookswr@gmail.com}
+
+\begin{document}
+\maketitle
+
+When education researchers propose a new treatment, it is important to evaluate whether it is beneficial \citep{MostellerBoruch2002}. If students have been randomly allocated into conditions, the researchers could compare the treatment group with a control group on the outcome variable using something like a $t$-test. While this is likely not the most powerful statistical test depending on several factors, it provides an unbiased test of the treatment effect. 
+
+In much education research it is not practical (and sometimes impossible) to allocate students into conditions: for example, to change students' social class; to change their early childhood experiences; to change their pre-study knowledge; to make them have specific psychological conditions, \emph{etc}. This is true in many disciplines: e.g., an astronomer cannot assign a star to go supernova; a historian cannot randomly decide whether Trotsky or Stalin succeeds Lenin; see also the evaluations at \url{www.povertyactionlab.org}.
+
+Because of this, researchers rely on statistical procedures, often with the belief that certain statistical procedures somehow ``control'' the effects of other variables, usually called covariates. These procedures do not physically ``control'' or in any other way affect these covariates. Some people believe this, what \citet{Braun2013} describes as magical thinking. Unfortunately this misnomer has been shared with generations of students.  Three procedures are discussed: gain scores, ANCOVA, and propensity matching. All of these provide accurate solutions in certain circumstances to certain research questions. The difficulty is knowing when each of these procedures, and if any of these, is appropriate. These methods are described in more detail using two examples. Graphical models and simulations are used to illustrate how a researcher might decide which to use. Two examples are used to illustrate steps that can be used to help guide this choice.
+
+\begin{framed}
+The following steps can be taken before conducting statistical analysis of any intervention: 
+\begin{enumerate}[noitemsep]
+\item describe models for how the data might arise, 
+\item simulate data according to these models, and 
+\item evaluate different statistical procedures. 
+\end{enumerate}
+\end{framed}
+
+
+\section{A Mathematics Intervention and Review of Procedures}
+A mathematics intervention example was chosen to represent evaluations where the researcher wants to know if a treatment works, has a prior score measured before the treatment that is on the same scale as the outcome measure, but the researcher cannot randomly allocate people into a treatment and a control condition. 
+
+Suppose you want to assess whether a year-long program of a weekly after-school ``math club'' improves students' scores at the end of the year. Denote being in the club with $\mathit{Treatment} = 1$ and 0 otherwise, the assessment before treatment as \emph{Pre}, and the end of year assessment with $\mathit{Post}$ (subscripts will not be used on variables in text or in figures, but all vary by student). There would be complaints if students were randomly assigned to this intervention. First, let's assume students volunteer for the club. Who volunteers for an after-school math club is not random. Assume there is some latent variable, call it $\mathit{Propensity}$, that predicts is the probability of whether a student (or their guardian) volunteers. This is an unmeasured variable. $\mathit{Propensity}$ is likely to be influenced by many things, including how much math knowledge the student has already learned and aspects of their home environment (e.g., diligence doing homework). Call this $\mathit{Knowledge}$. $\mathit{Knowledge}$ will also affect the two test scores. $\mathit{Knowledge}$ and $\mathit{Propensity}$ will be influenced by many other variables, and will also influence other variables. Some of these may be observed, but most will not be. For illustration, only simple models are used in this section. 
+
+It is often useful to draw relationships using the mathematics concept of a graph \citep[not everyone agrees, see][p.~22]{ImbensRubin2015}. A graph, in its mathematical sense, is a set of nodes (called vertices in some texts), some of which are connected by edges. In causal models these edges are often shown with an arrow on one end to denote the direction of causality. Following the style used in structural equation modeling, ellipses will be used here for unmeasured constructs and rectangles for observed variables. The seminal reference applying graphs to causal models in science is \citet{Pearl2009}, and good introductions include: \citet{Elwart2013}, \citet{MorganWinship2015}, and \citet{PearlEA2016}. Figure~\ref{fig:datasimple}A shows the model described above. Each observed variable also includes an error term, which are not shown in order to make the figures less cluttered (they would be small ellipses with an arrow pointed towards the observed variable). Models are simplifications. For example, there will be other variables that influence $\mathit{Knowledge}$ and $\mathit{Propensity}$, and are influenced by these. The primary interest for the researcher is estimating the edge $\mathit{Treatment} \rightarrow \mathit{Post}$, enclosed with a red ellipse. 
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=.8]
+  \node[scale=1.0] (A) at (-1.9,10) {\textbf{A}};
+  \node[scale=.9,draw,ellipse] (know) at (1.8,9) {\emph{Knowledge}};
+  \node[scale=.9,draw,ellipse] (propen) at (-0.2,6) {\emph{Propensity}};
+  \node[scale=.9,draw,rectangle] (treat) at (-.2,4.5) {\emph{Treatment}};
+  \node[scale=.9,draw,rectangle] (prior) at (1.8,7.3) {\emph{Pre}};
+  \node[scale=.9,draw,rectangle] (post) at (1.8,3) {\emph{Post}};
+  \node[scale=1.2] (spacebottom) at (1,2.5) {\phantom{Hello}};
+  \draw[rotate around={53.3:(.8,3.74)}, red] (.8,3.74) ellipse (7pt and 17.5pt);
+  
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](propen) -- (treat);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](know) -- (propen);
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](know) -- (prior);
+  \draw[shorten >=0.16cm,shorten <=.17cm,->](treat) -- (post);
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](know) to[out=-45,in=60,] (post);
+
+  \node[scale=1] (B) at (4.5,10) {\textbf{B}};
+  \node[scale=.9,draw,ellipse] (knowb) at (8.2,9) {\emph{Knowledge}};
+  \node[scale=.9,draw,ellipse] (propenb) at (6.2,6) {\emph{Propensity}};
+  \node[scale=.9,draw,rectangle] (treatb) at (6.2,4.5) {\emph{Treatment}};
+  \node[scale=.9,draw,rectangle] (priorb) at (8.2,7.3) {\emph{Pre}};
+  \node[scale=.9,draw,rectangle] (postb) at (8.2,3) {\emph{Post}};
+  \draw[rotate around={53.3:(7.2,3.74)}, red] (7.2,3.74) ellipse (7pt and 17.5pt);
+  
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](propenb) -- (treatb);
+%  \draw[shorten >=0.1cm,shorten <=.0cm,->](knowb) -- (propenb);
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](knowb) -- (priorb);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](priorb) -- (propenb);
+  \draw[shorten >=0.16cm,shorten <=.17cm,->](treatb) -- (postb);
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](knowb) to[out=-45,in=60,] (postb);
+
+  \node[scale=1.0] (C) at (10.9,10) {\textbf{C}};
+  \node[scale=.9,draw,ellipse] (knowc) at (14.6,9) {\emph{Knowledge}};
+  \node[scale=.9,draw,ellipse] (propenc) at (12.6,6) {\emph{Propensity}};
+  \node[scale=.9,draw,rectangle] (treatc) at (12.6,4.5) {\emph{Treatment}};
+  \node[scale=.9,draw,rectangle] (priorc) at (14.6,7.3) {\emph{Pre}};
+  \node[scale=.9,draw,rectangle] (postc) at (14.6,3) {\emph{Post}};
+  \draw[rotate around={53.3:(13.6,3.74)}, red] (13.6,3.74) ellipse (7pt and 17.5pt);
+
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](propenc) -- (treatc);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](knowc) -- (propenc);
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](knowc) -- (priorc);
+  \draw[shorten >=0.16cm,shorten <=.17cm,->](treatc) -- (postc);
+  \draw[shorten >=0.075cm,shorten <=.0cm,->](knowc) to[out=-45,in=60,] (postc);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](priorc) -- (propenc);
+
+\end{tikzpicture}
+\caption{\label{fig:datasimple} Three data-creation models that vary by how \emph{Knowledge} and \emph{Pre} influence \emph{Propensity}. In Panel A only \emph{Knowledge} influences it, in Panel B only \emph{Pre} influences it, and in Panel C both influence it.}
+\end{figure}
+
+For the model in Figure~\ref{fig:datasimple}A, the students' scores on \emph{Pre} do not influence whether someone is in the treatment. This might be because treatment allocation is decided before the tests are scored. Figure~\ref{fig:datasimple}B supposes that the \emph{Pre} scores do influence propensity, and that \emph{Knowledge} does not. This might be if school administrators were deciding who was in the math club based solely on the scores from this assessment, and the other factors influencing \emph{Propensity} were unrelated to \emph{Knowledge} (e.g., whether the student was available when the club occurred). Figure~\ref{fig:datasimple}C allows both of these to influence \emph{Propensity}. More complex models are considered in Example \#2 of this paper.
+
+\subsection{Review of Statistical Methods using \textsf{R}}
+Comparing scores on $\mathit{Post}$ by \emph{Treatment} using something like a $t$-test is not a good measure of the intervention when the two groups begin systematically different in ways associated with the outcome variable. Differences on the outcome variable could be due either to the intervention or to the pre-existing differences. Three procedures will be considered in this paper: gain scores, ANCOVA, and propensity matching. Each of these is sometimes described as ``controlling for previous performance.''  
+
+Before doing any inferential statistical modelling, descriptive statistics and visualizations should be done \citep{WilkinsonEA1999,Wright2003friends}. Example plots are shown in Figure~\ref{fig:plotscat} for hypothetical data for \emph{post} and \emph{pre} scores for two groups. This shows a scatterplot with ellipses to show where approximately 50\% of each group lie. These are made with the \texttt{dataEllipse} function of \textbf{car} \citep{car}. The colored lines are regression lines for each group. The slopes of these are less than one (shown with the grey line, for $\mathit{Pre} = \mathit{Post}$), which is consistent with regression towards the mean \citep{Galton1886}. The histograms for each variable are shown to the right of the scatterplot. These show the distributions for both groups for both variables, and include a kernel density curve made with \textsf{R}'s \texttt{density} function. The mean for each group is shown by the vertical dashed lines. Further information about making plots in \textsf{R} can be found in \citet{Murrell2019}. The \emph{a} and \emph{b} in the plot are discussed below.
+
+<<plotscat,message=FALSE,fig.cap="The scatterplot is \\emph{post} with \\emph{pre} scores (\\emph{n} = 500), showing ellipses that are estimated to include 50\\% of the population data for each group. The lines in the scatterplot are regression lines for each group. The histograms show the distributions of these, with kernel density curves (and means shown with the vertical dashed lines).",fig.width=6.1*1.1,out.width="6.1in",fig.height=3.2*1.1,out.height="3.2in",echo=FALSE,fig.align="center",echo=FALSE>>=
+library(car)
+library(colorspace)
+set.seed(2091)
+n <- 500
+par(mar=c(6,4,0.5,0))
+group <- sample(0:1,n,replace=TRUE)
+know <- runif(n,0,.5)+ .5*group 
+pre <- rnorm(n,know) + 2*group - 2
+post <- rnorm(n,.4*pre + 0*know + .5*group) 
+pre <- as.vector(scale(pre)+12)*6; post <- as.vector(scale(post)+12)*6
+layout(matrix(c(1,1,2,3),2,2),widths=c(4,2))
+#layout.show(n=3)
+dataEllipse(pre,post,as.factor(group),levels=.5,center.pch=FALSE,
+    fill=TRUE,fill.alpha=.3,col=c("red","blue"),lwd=.3,cex=.4,pch=3:4,
+    xlim=c(55,90),ellipse.label=FALSE,las=1,robust=TRUE,group.labels=NULL)
+abline(lm(post[group==0]~pre[group==0]),col="red")
+abline(lm(post[group==1]~pre[group==1]),col="blue")
+redl <- rgb(1,0,0,max=1,alpha=.1) # since on top of something already light red 
+redlight <- lighten("red",.3)
+points(mean(pre[group==0]),mean(post[group==0]),cex=.4,lwd=.4,bg=redl,pch=21,col="black")
+lines(c(mean(pre[group==0]),mean(pre[group==0])),
+      c(mean(post[group==0])-.13,mean(pre[group==0])),lwd=1.7,col="black",lend=1)
+lines(c(mean(pre[group==0]),mean(pre[group==0])),
+      c(mean(post[group==0])-.11,mean(pre[group==0])),lwd=.67,col=redlight)
+
+bluel <- rgb(0,0,1,max=1,alpha=.1) # since on top of something already light red 
+bluelight <- lighten("blue",.3)
+points(mean(pre[group==1]),mean(post[group==1]),cex=.5,lwd=.5,bg=bluel,pch=21,col="black")
+lines(c(mean(pre[group==1]),mean(pre[group==1])),
+      c(mean(post[group==1])+.13,mean(pre[group==1])),lwd=1.7,col="black",lend=1)
+lines(c(mean(pre[group==1]),mean(pre[group==1])),
+      c(mean(post[group==1])+.11,mean(pre[group==1])),lwd=.67,col=bluelight)
+
+abline(0,1,col="grey50")
+
+legend(52,89.2,c("Control","Treatment"),text.col=c("red","blue"),bg="white")
+box(lwd=1)
+rb <- colorRampPalette(c("red", "blue"))
+xseq <- seq(1,100)
+points(rep(57,length(xseq)),seq(62.54,63.79,length=length(xseq)),col=rb(length(xseq)),pch=19,cex=.1)
+text(61,74.04,"a", pos=4)
+arrows(62.7,74,67.4,68.0,length=.04,lwd=.7)
+arrows(62.7,74,76.7,76.34,length=.04,lwd=.7)
+
+text(57,63.1,'b', pos=3)
+
+par(mar=c(4.5,2,1.5,0.5))
+par(lwd=.5)
+hist(post[group==0],yaxt='n',font.main=1,main="",xlim=c(50,100),prob=TRUE,
+     breaks=seq(50,100,2.5),ylab="",xlab="",col=rgb(1,0,0,1,alpha=.2))
+hist(post[group==1],yaxt='n',font.main=1,main="",xlim=c(50,100),prob=TRUE,
+     breaks=seq(50,100,2.5),ylab="",xlab="",
+     col=rgb(0,0,1,max=1,alpha=.2),add=TRUE)
+par(lwd=1)
+lines(density(post[group==0]),col=lighten("red",.15))
+lines(density(post[group==1]),col=lighten("blue",.15))
+lines(rep(mean(post[group==0]),2),c(0,.077),col=lighten("red",.15),lty=2)
+lines(rep(mean(post[group==1]),2),c(0,.076),col=lighten("blue",.15),lty=2)
+abline(h=0)
+text(48,.07,"post",pos=4)
+par(mar=c(6,2,0,0.5))
+par(lwd=.5)
+hist(pre[group==0],yaxt='n',font.main=1,main="",xlim=c(50,100),prob=TRUE,
+     breaks=seq(50,100,2.5),ylab="",xlab="",col=rgb(1,0,0,1,alpha=.2))
+hist(pre[group==1],yaxt='n',font.main=1,main="",xlim=c(50,100),prob=TRUE,
+     breaks=seq(50,100,2.5),ylab="",xlab="",
+     col=rgb(0,0,1,max=1,alpha=.2),add=TRUE)
+par(lwd=1)
+lines(density(pre[group==0]),col=lighten("red",.15))
+lines(density(pre[group==1]),col=lighten("blue",.15))
+lines(rep(mean(pre[group==0]),2),c(0,.097),col=lighten("red",.15),lty=2)
+lines(rep(mean(pre[group==1]),2),c(0,.097),col=lighten("blue",.15),lty=2)
+abline(h=0)
+text(48,.095,"pre",pos=4)
+@
+
+The first two procedures are often discussed with reference to Lord's paradox (\citeyear{Lord1967,Lord1969}). Lord described a situation: students' weights, before and after a year of college, where interest was with the gender difference. Lord imagined two statisticians proposing different methods for the analysis. The first statistician proposed subtracting the two weights and comparing means of these gain scores. The second statistician proposed predicting final weight from gender after conditioning on the initial weight using an ANCOVA. The statisticians reached different conclusions. The first statistician found no difference in weight gain, for either females or males, so no gender difference. The second found males weighed more than females after conditioning on pre-weights. Several authors have shown when and why these approaches can produce different effects \citep[e.g.,][]{Hand1994,HollandRubin1983,KimSteiner2020,Pearl2016,Wainer1991,Wright2006,Wright2020lord}. Since Lord described this paradox, propensity matching \citep[e.g.][]{Rosenbaum2002,Rubin2006} has become very popular, though many express concerns that it is sometimes used without due concern \citep[e.g.,][]{Pearl2009,Sekhon2009}. Therefore these three procedures will be reviewed. The environment language \textsf{R} \citep{R} will be used for simulations, so here the code to estimate these models in \textsf{R} is presented. 
+
+
+\paragraph{Gain scores} 
+The simplest of the procedures considered, computationally, is the gain score method. Let $\mathit{Gain} = \mathit{Post} - \mathit{Pre}$ and it is assumed that these gain scores have approximately the same meaning for each level of $\mathit{Pre}$. It must make sense to equate, for example, Tom's increase from 96 to 99 with Jerry's increase from 47 to 50. Analyses can then be conducted on this variable using $\mathit{Treatment}$ with or without the other observed variables. Lord's (1967) first statistician conducted a $t$-test between the two groups on the gain score (i.e., no other covariates). Eqn.~\ref{eqn:gain} shows this as a regression model:
+\begin{equation}\label{eqn:gain}
+\mathit{Gain_i} = \mathit{Post_i} - \mathit{Pre_i} = \beta_0 + \beta_1 \, \mathit{Treatment_i} + \cdots + e_i \quad .
+\end{equation}
+\noindent The procedure estimates $\widehat{\beta}_0$ and $\widehat{\beta}_1$, usually by finding these values such that $\sum e_i^2$ is as small as possible (i.e., least squares). If only the single predictor variable $Treatment$ is used this is equivalent to a $t$-test. The three dots, $\cdots$, are shown to emphasize that further covariates could be included. Most interest is in $\widehat{\beta}_1$, the value associated with the treatment, and the usual null hypothesis is: $H_0$: $\beta_1 = 0$. In \textsf{R}, where \texttt{Covs} is the set of any covariates beyond the treatment (\texttt{Group}) and initial score (\texttt{Pre}), this would be:
+<<eval=FALSE>>=
+gainmod <- lm(Post - Pre ~ Group + Covs)
+@
+The \texttt{lm} function stands for linear model. The gain scores are calculated on the left of the \verb!~! and the model is on the right. If you have several data sources, you can tell \textsf{R} which of these objects the variable is in. This can be done in a few ways. Suppose those variables are stored in a data frame called \texttt{dandata}:
+\begin{singlespacing}
+<<eval=FALSE>>=
+gainmod <- lm(Post - Pre ~ Group + Covs, data = dandata)
+with(dandata, gainmod <- lm(Post - Pre ~ Group + Covs))
+gainmod <- lm(dandata$Post - dandata$Pre ~ dandata$Group + dandata$Covs)
+@
+\end{singlespacing}
+
+The result (\texttt{gainmod}) is stored here as an object called \texttt{gainmod}. Information from this object can be printed by typing \texttt{gainmod}, or by placing it inside functions like \texttt{summary(gainmod)} (summary output), \texttt{anova(gainmod)} (ANOVA table), \texttt{confint(gainmod)} (confidence intervals of the fixed effects), \texttt{predict(gainmod)} (predicted values), and \texttt{plot(gainmod)} (useful plots for checking assumptions). These functions all find the class of object \texttt{gainmod} is (class is \texttt{"lm"}) and report these results accordingly. For introductions to using \textsf{R} for statistics see \citet{Crawley2015}, \citet{FieldEA2012}, \citet{Matloff2020}, and \citet[\textsf{R} is an implementation of the language \textsf{S}, so books about \textsf{S} are also applicable]{MASS}. For discussions of philosophy behind and history of \textsf{R} see \citet{Chambers2008} for details and \citet{Chambers2009} for an abbreviated discussion. Useful sources about the programming language include Chambers (\citeyear{Chambers1998,Chambers2016}), \citet{Matloff2011}, \citet{VenablesRipley2000}, and \citet{Wickham2015}.
+
+The output from \texttt{coef(gainmod)} for the data from Figure~\ref{fig:plotscat} is:
+<<>>=
+summary(lm(post-pre ~ group))$coefficients
+confint(lm(post-pre ~ group))
+@
+\noindent
+The intercept is the mean gain for the control group ($\widehat\beta_0 = 0.82$). The difference between the two gain scores, shown in the final line, is: $\widehat\beta_1 = -1.73$, with $t(498) = -4.41, p < .001$. The coefficient is negative meaning the gain by the treatment group is less than the gain by the control group. The mean for the treatment group is the sum of these two estimates: $0.82 - 1.73 = -0.91.49$. The equivalent $t$-test provides a little more output. Both show the same $t$-value and $p$-value. The group variable 
+<<>>=
+t.test(post-pre ~ group, var.equal=TRUE)
+@
+\noindent The gain is positive for the control group and negative for the treatment group. The $t$-value is negative in the regression output but positive in the $t$-test output just because of how the $t$-test function interval represents the group variable. Since the hope that the treatment has a positive effect this should probably be written as a negative $t$-value. The mean gain score for each group is in Figure~\ref{fig:plotscat} by the two lines marked by \emph{a} with arrows. These lines go from the means of the two variables for each group, shown with a circle in the middle of the ellipse, to the value where the group would have been if there had been no gain (both the horizontal and vertical values being the mean for the \emph{Pre} score). The conclusion from the gain score procedure would likely be that the treatment had a negative effect on achievement.
+
+\paragraph{ANCOVA}
+Lord's (1967) second statistician conducted an ANCOVA. This is the procedure most often described as \emph{controling} covariates. There have been decades of warnings about the limitations of this procedure \citep[e.g.,][]{Kahneman1965,Meehl1970}. The phrase ANCOVA can mean different things to different people, but here it will refer to the following model:
+\begin{equation} \label{eqn:ancova}
+\mathit{Post_i} = \beta_0 + \beta_1 \, \mathit{Treatment_i} + \beta_2 \, \mathit{Pre_i} + \dots + e_i \quad .
+\end{equation}
+If $\beta_2$ is fixed at 1, this becomes eqn.~1. This ANCOVA also tests if $\beta_1 = 0$, like eqn.~\ref{eqn:gain}, but this $\beta_1$ is different. It is the effect after conditioning on \emph{Pre} and the outcome variable is different. More covariates are often added to the regression, further obfuscating the meaning of $\beta_1$.  
+
+\citet[p.~111]{CoxDonnelly2011} suggest using notation that shows all the variables being conditioned upon when reporting an effect makes the complexity more transparent. If the additional covariates were $cov_1$, $cov_2$, and $cov_3$, the treatment effect could be written as: $\beta_{treatment|pre,cov1,cov2,cov3}$. Sometimes further variables are added to regressions/ANCOVAs with the hope that this somehow gets closer to the isolating the causal impact of $\mathit{Treatment}$ on $\mathit{Post}$. If the convention were to report estimates with this longer notation it might make clearer that adding more variables is unlikely to simplify the meaning of the effects. Adding or removing a covariate changes the meaning of the parameter being estimated. It is important to think carefully about which covariates to include based on their role in the overall causal model and to evaluate the performance of these statistical models with simulated data sets. In \textsf{R}, where \texttt{Covs} is the set of any covariates other than \emph{Treatment} and \emph{Pre} scores, this would be:
+<<eval=FALSE>>=
+ANCOVAmod <- lm(Post ~ group + pre + Covs)
+@
+The results can be found using the same \textsf{R} functions listed above because both are produced with the \texttt{lm} function so both produce class \texttt{"lm"} objects. 
+\begin{singlespace}
+<<>>=
+summary(lm(post ~ group + pre))$coefficients
+confint(lm(post ~ group + pre))
+@
+\end{singlespace}
+
+After conditioning on $Pre$, the treatment effect is positive: $\widehat \beta_1 = 2.14$, $t(497) = 3.67, p < .001$. Thus, the typical conclusion from this analysis would be that the treatment had a positive effect on achievement. Because the gain score approach and the ANCOVA approach lead to different conclusions, both cannot be write, which is why \citet{Lord1967} called this a paradox. 
+
+\paragraph{Propensity Score Matching}
+Trying to reach causal conclusions when people are not randomly allocated into groups is difficult \citep{CampbellStanley1963}. Propensity matching attempts to create an accurate model of who chooses (or is chosen) to be in the intervention, and then uses this information to compare people with similar propensities to be treated. Propensity matching was developed in a series of papers by Rosenbaum and Rubin. The seminal textbook is \citet{Rosenbaum2002} and many of their contributions have been re-published in \citet{Rubin2006}. The phrase propensity matching now applies to several different approaches that aim to achieve these goals. An excellent introduction to propensity matching, which covers many of these approaches, is \citet{Leite2017}. He describes six steps for propensity score analysis (p.~7).
+
+\begin{enumerate} 
+\item Prepare data. This includes choosing which covariates to include. This requires knowledge of how the different variables may relate and therefore knowledge of the research domain. Leite includes dealing with missing values in this step. 
+\item Propensity score estimation. This involves using the covariates to estimate the probability that each person will be in the treatment group (e.g., with logistic regression). 
+\item Propensity score method implementation. The analyst decides whether to create ``matched'' groups or use some other technique (e.g., weighting according to the propensity score in a regression).
+\item Covariate balance estimation. Depending on the previous step, the analyst evaluates how successful the implementation is. For example, if matched groups were created, are their scores similar on the covariates? 
+\item Estimate the effect of a treatment. The method depends on previous steps.
+\item Sensitivity analysis. A variety of methods can be used here, including the focus of Example \#2 in this paper, seeing if the results vary by whether particular covariates are included or not (\#2a), and varying assumptions of the data-creation model (\#2b).
+\end{enumerate}
+  
+\citet{Leite2017} goes through each of these steps. He shows different methods that can be used for each and how these are implemented in \textsf{R}. There are several statistics packages for performing propensity matching and estimating the treatment effects (see \url{www.biostat.jhsph.edu/~estuart/propensityscoresoftware.html}). Keller and Tipton's (\citeyear{KellerTipton2016}) review of \textsf{R} propensity matching packages is particularly relevant. 
+Currently (10 April 2020) the CRAN task view for social science (\url{https://cran.r-project.org/web/views/SocialSciences.html}) lists the \textbf{Matching} \citep{Matching}, \textbf{MatchIt} \citep{MatchIt}, \textbf{optmatch} \citep{optmatch}, and \textbf{PSAgraphics} \citep{PSAgraphics} packages for propensity matching. Other packages of note include \textbf{twang} \citep{twang} and \textbf{CBPS} \citep{CBPS}. 
+
+Here the \textbf{Matching} package \citep{Matching} and its \texttt{Match} function are used. To use a package you first must install it (e.g., \texttt{install.packages("Matching")}). This can be done just once so it is on your computer and whenever you want to make sure that you have the most up-to-date version. Next, you load it (e.g., \texttt{library(Matching)}), and this your need to do within each \textsf{R} session in which you want to use the package's functions. 
+
+The function can be called just using its name (here \texttt{Match}), but if you have several packages open you might have another function also named \texttt{Match}. If you are not sure it is safest to use \texttt{Matching::Match} to call functions. In this formula \texttt{Covs} may or may not include \texttt{Pre}, depending on what the analyst believes. The propensity score estimation is done with a logistic regression and the matching and estimation steps are done by the \texttt{Match} function. The goal of this paper is not to argue for or against a particular propensity matching approach. There is still much debate about this. \citeauthor{Leite2017}'s (2017) coverage seems well balanced. 
+
+\begin{singlespace}
+<<showpm,eval=FALSE>>=
+propval <- glm(Treatment ~ Covs,family=binomial)$fitted
+library(Matching)
+PrMatmod <- Match(PostTest,Treatment,propval,
+      estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+@
+\end{singlespace}
+
+The \texttt{Match} function has several options (type \verb!?Match! in \textsf{R} to see these once the package is installed). The \texttt{estimand="ATE"} means the estimate is the average treatment effect. This is the average estimated difference due to treatment for both those given the treatment and those not give the treatment. The user also has the option to estimate the treatment effect separately for those in the treatment condition or for those in the control condition. These would be valuable for different applied problems: the former to estimate the effect for those likely to sign up for the treatment and the later the value if you could encourage those who would not normally sign up to sign up. If you type \texttt{summary(PrMatmod)} the computer will print the results. Further information can be extracted from this object. Type \texttt{PrMatmod\$est} to get the estimated treatment effect. To see other information that can be extracted type \texttt{str(PrMatmod)}. It is usually used with many variables to predict the group allocation, but for illustration here it is done with just $pre$. Here the results (estimate $=2.96, z = 2.06, p = .039$) are consistent with the ANCOVA approach, showing a positive effect from the treatment.\footnote{The output says $t$-value, but the author uses \texttt{pnorm} in his \texttt{summary.Match} function.}
+
+<<message=FALSE>>=
+propval <- glm(group ~ pre,family=binomial)$fitted
+suppressPackageStartupMessages(library(Matching))
+PrMatmod <- Match(post,group,propval,
+      estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+summary(PrMatmod)
+@
+
+Propensity matching methods can be used in conjunction with the gain score and ANCOVA approaches. For the gain score approach, the gain score would simply be used as the dependent variable. Propensity matching can be combined with ANCOVA; after either matching or weighting for the propensity scores, by using additional covariates (including those used to estimate propensity) to predict the outcome. This approach, sometimes called doubly robust, can increase the power for detecting a treatment effect. These extensions are not explored in the current paper. Further, there are many other methods that can be used for addressing inadequacies of the basic ANCOVA (e.g., non-linearity, measurement error, clustered data). 
+
+\begin{framed}
+\begin{enumerate}[noitemsep]
+\item For more information about conducting propensity matching in \textsf{R} see \citet{Leite2017}.
+\item The gain score and ANCOVA procedures use regression. For much more information about using conducting regressions in \textsf{R} and other aspects of regression see \citet{car} and \citet{Matloff2017}. 
+\end{enumerate}
+\end{framed}
+
+\section{Examples using Simulation}
+Four simulations are presented as examples of how a researcher might go about deciding which approaches to use. The key steps are: a) creating a set of plausible data models, b) creates lots of data sets for these, c) conduct the statistical procedures that you wish to compare on these, and d) compare these findings. These examples are to illustrate this approach, but the topics were chosen because they are important in deciding among procedures: how people are allocated to groups and colliders.
+
+\subsection{Varying How Students are Allocated into Groups}
+Simulation methods are used here to explore potential bias for the three statistical procedures for the three data models shown in Figure~\ref{fig:datasimple}. \textsf{R} \citep[Version \Sexpr{sessionInfo()$loadedOnly$tools$Version}]{R} is used. Other software (e.g., Python, SAS, SPSS, Stata) could have been used, but using \textsf{R} allows use of its propensity matching packages \citep[e.g.,][]{KellerTipton2016} and it is freely available to all readers. Simulation methods allow the data-creation models to be varied to examine further research questions. In this example, the relationships among $\mathit{Knowledge}$, \emph{Pre}, and \emph{Treatment} are varied. 
+
+<<packages,echo=FALSE>>=
+#opts_chunk$set(cache.path = "C:\\Users\\dwright\\Documents\\Vam Research\\cache\\")
+suppressPackageStartupMessages(library(xtable))
+suppressPackageStartupMessages(library(Matching))
+suppressPackageStartupMessages(library(twang))
+suppressPackageStartupMessages(library(recoder))
+suppressPackageStartupMessages(library(arm))
+@
+
+\paragraph{Example \#1a: Having the true effect equal zero}
+Data were created for each of the models depicted in Figure~\ref{fig:datasimple} and the three statistical models applied. For the gain score model, \emph{Treatment} was used to predict the difference in the two scores (equivalent to a $t$-test on the gain scores). For the ANCOVA \emph{Treatment} and \emph{Pre} were used to predict \emph{Post}. For the propensity matching, \emph{Pre} was used to predict \emph{Treatment}, propensity values were taken for this, and \citeauthor{Matching}'s (\citeyear{Matching}) \texttt{Match} function used to estimate the effect of treatment. Normally propensity matching is used with a larger number of variables. This is done in Example \#2. To make these results easier to interpret, in Example \#1a the true treatment effect is zero. Thus, the correct answer for all of these models is $\beta_1 = 0$ so the mean of unbiased $t$ and $z$ values should be near zero. In \#1b different effect sizes are used.
+
+<<analysismethodssimple,size='footnotesize',echo=FALSE,eval=TRUE>>=
+# 0 gain, 1 ancova, 2 pm
+simpallmodels <- function(prior,treata,treatb,treatc,
+                          posta,postb,postc){
+  modvals <- matrix(nrow=12,ncol=6)
+  modvals[1,] <- c(0,1,summary(lm(posta - prior ~ treata))$coef[2,])
+  modvals[2,] <- c(1,1,summary(lm(postb - prior ~ treatb))$coef[2,])
+  modvals[3,] <- c(2,1,summary(lm(postc - prior ~ treatc))$coef[2,])
+  modvals[10,] <- c(0,4,summary(lm(posta ~ treata))$coef[2,])
+  modvals[11,] <- c(1,4,summary(lm(postb ~ treatb))$coef[2,])
+  modvals[12,] <- c(2,4,summary(lm(postc ~ treatc))$coef[2,])
+  modvals[4,] <- c(0,2,summary(lm(posta ~ treata + prior))$coef[2,])
+  modvals[5,] <- c(1,2,summary(lm(postb ~ treatb + prior))$coef[2,])
+  modvals[6,] <- c(2,2,summary(lm(postc ~ treatc + prior))$coef[2,])
+  propval <- glm(treata ~ prior,family="binomial")$fitted
+  mod <- Match(posta,treata,propval,estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+  modvals[7,] <- c(0,3,mod$est,mod$se,
+           zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)
+  propval <- glm(treatb ~ prior,family="binomial")$fitted
+  mod <- Match(postb,treatb,propval,estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+  modvals[8,] <- c(1,3,mod$est,mod$se,
+           zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)
+    propval <- glm(treatc ~ prior,family="binomial")$fitted
+    mod <- Match(postc,treatc,propval,estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+  modvals[9,] <- c(2,3,mod$est,mod$se,
+           zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)
+      return(modvals)
+       }
+qrank <- function(x) 1-(rank(x)+1)/(length(x)+2)
+@
+
+Values for the latent variable \emph{Knowledge} were drawn from a unit Normal distribution, i.e., $\mathit{Knowledge} \sim N(\mu=0,\sigma=1)$. \emph{Pre} was drawn from $\mathit{Knowledge} + N(\mu=0,\sigma=1)$, then standardized so that it has a mean of 0 and standard deviation of 1. \emph{Propensity} was drawn from $\mathit{Knowledge} + N(\mu=0,\sigma=1)$, $\mathit{Pre} + N(\mu=0,\sigma=1)$, and $\mathit{Pre} + \mathit{Knowledge} + N(\mu=0,\sigma=1)$, for panels A, B, and C, respectively, from Figure~\ref{fig:datasimple}. Each of these was standardized. Treatment was decided by a Bernoulli process with probability equal to the propensity variable; so like the flip of a weighted coin. \emph{Post} is drawn from $\mathit{Knowledge} + N(\mu=0,\sigma=1)$, then standardized. It is not affected by \emph{Treatment}, so the true treatment effect is zero. The three statistical models were estimated. This was repeated 10,000 times so that the estimates are quite precise. The code is in the Appendix.
+
+<<propancgainstudy3simpler,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+qrank <- function(x) 1-(rank(x)+1)/(length(x)+2)
+
+n <- 200
+reps <- 10000 #47 
+set.seed <- 9384
+#3*4 is a/b/c by 4 procedures
+simpvals <- matrix(ncol=6,nrow=reps*12) 
+for (i in 1:reps){
+  know <- rnorm(n)
+  prior <- scale(know + rnorm(n))
+  propena <- scale(know + rnorm(n))  
+  propenb <- scale(prior + rnorm(n))  
+  propenc <- scale(know + prior + rnorm(n))  
+  treata <- rbinom(n,1,qrank(propena))
+  treatb <- rbinom(n,1,qrank(propenb))
+  treatc <- rbinom(n,1,qrank(propenc))
+  #posts differ just by rnorm, but two kept in case
+  #treatment effect added by someone
+  posta <- scale(0*treata + know + rnorm(n)) 
+  postb <- scale(0*treatb + know + rnorm(n)) 
+  postc <- scale(0*treatc + know + rnorm(n)) 
+  simpvals[((i-1)*12+1):(i*12),] <- 
+    simpallmodels(prior,treata,treatb,treatc,posta,postb,postc)
+    }
+
+colnames(simpvals) <- 
+    c("DAG","Procedure","ATE","seATE","zval","pval")
+simpvals <- as.data.frame(simpvals)
+simpvals$DAG <- 
+  factor(recoder(simpvals$DAG,'0:"A";1:"B";2:"C" '),
+         levels=c("A","B","C"))
+simpvals$Procedure <- 
+  factor(recoder(simpvals$Procedure,
+          '1:"Gain";2:"ANCOVA";3:"PM";4:"t-test" '),
+         levels=c("Gain","ANCOVA","PM", "t-test"))
+@
+<<echo=FALSE>>=
+lbmean <- function(x){
+  se <- sd(x)/sqrt(length(x))
+  lb <- mean(x) - qt(.975,length(x)-1)*se
+ return(lb)}
+ubmean <- function(x){
+  se <- sd(x)/sqrt(length(x))
+  ub <- mean(x) + qt(.975,length(x)-1)*se
+ return(ub)}
+@
+
+%<<tab:ext3,results='asis',echo=FALSE,eval=TRUE>>=
+<<echo=FALSE>>=
+xtab1 <- with(simpvals,tapply(zval,list(DAG,Procedure),mean))
+xtab2 <- with(simpvals,tapply(zval,list(DAG,Procedure),lbmean))
+xtab3 <- with(simpvals,tapply(zval,list(DAG,Procedure),ubmean))
+d2 <- function(x) sprintf("%1.2f",x)
+@
+
+\begin{table}
+\centering
+  \caption{The mean \emph{t} and \emph{z} values for treatment effect for the 
+    different statistical procedures for the different 
+    data-creation models from Figure~\ref{fig:datasimple} (Example \#1a). 
+    95\% confidence intervals in parentheses. These are based on 10,000 replications.}
+  \label{tab:ext3}
+\begin{tabular}{l c c c}
+& \multicolumn{3}{c}{Statistical Procedure} \\
+\cline{2-4}
+& Gain Score & ANCOVA & Prop.~Matching \\
+\hline
+\multirow{2}{*}{Figure 1A} & \Sexpr{d2(xtab1[1,1])} & \Sexpr{d2(xtab1[1,2])} & \Sexpr{d2(xtab1[1,3])} \\ 
+& (\Sexpr{d2(xtab2[1,1])}, \Sexpr{d2(xtab3[1,1])})
+& (\Sexpr{d2(xtab2[1,2])}, \Sexpr{d2(xtab3[1,2])})
+& (\Sexpr{d2(xtab2[1,3])}, \Sexpr{d2(xtab3[1,3])}) \\
+\multirow{2}{*}{Figure 1B} & \Sexpr{d2(xtab1[2,1])} & \Sexpr{d2(xtab1[2,2])} & \Sexpr{d2(xtab1[2,3])} \\ 
+& (\Sexpr{d2(xtab2[2,1])}, \Sexpr{d2(xtab3[2,1])})
+& (\Sexpr{d2(xtab2[2,2])}, \Sexpr{d2(xtab3[2,2])})
+& (\Sexpr{d2(xtab2[2,3])}, \Sexpr{d2(xtab3[2,3])}) \\
+\multirow{2}{*}{Figure 1C} & \Sexpr{d2(xtab1[3,1])} & \Sexpr{d2(xtab1[3,2])} & \Sexpr{d2(xtab1[3,3])} \\ 
+& (\Sexpr{d2(xtab2[3,1])}, \Sexpr{d2(xtab3[3,1])})
+& (\Sexpr{d2(xtab2[3,2])}, \Sexpr{d2(xtab3[3,2])})
+& (\Sexpr{d2(xtab2[3,3])}, \Sexpr{d2(xtab3[3,3])}) \\
+\hline
+\end{tabular}
+
+\end{table}
+
+Table~\ref{tab:ext3} shows the mean \emph{t} (from the gain score and ANCOVA output) and \emph{z} values (from the propensity matching output) for this simulation. Because this is a simulation it is known that the true effect is 0. The gain score model provides unbiased estimates for the Figure~\ref{fig:datasimple}A, where \emph{Pre} does not influence the propensity to be in the treatment group and therefore does not influence being in the treatment group. The other two statistical methods provide biased estimates here. They both suggest the treatment had a negative effect. The opposite occurs for data produced according to Figure~\ref{fig:datasimple}B, where \emph{Knowledge} does not affect propensity. Here ANCOVA and propensity matching produce mean estimates near zero, but the gain score procedure is biased, suggesting a positive effect for the treatment. When both \emph{Pre} and \emph{Knowledge} affect \emph{Propensity}, as in Figure~\ref{fig:datasimple}C, the gain score procedure estimates a positive treatment affect while the ANCOVA and propensity matching procedures estimate negative treatment effects. The findings for the gain score and ANCOVA procedures are consistent with \citet{Wright2006} and the graphical models of \citet{Pearl2016}. See also discussion in \citet{HollandRubin1983} and \citet{SteinerEA2011}. The researcher would need to decide which of the data-creation models in Figure~\ref{fig:datasimple} is most appropriate in order to decide if any of these three statistical models should be used. Some methods for this are described in \citet{LockwoodMcCaffrey2020}.
+
+\paragraph{Example \#1b: Varying the True Effect Size}
+Example \#1a shows when each procedure produces unbiased estimates when the true effect is zero. Here this is extended to negative and positive effect sizes. This allows examination of the procedures' power to detect effects to be examined. The simulation was repeated but when creating the \emph{Post} values a treatment effect was included. The treatment effect was drawn from a uniform distribution from -1 to +1. For those in the treatment condition this was added to the knowledge latent variable (distributed $N(\mu=0,\sigma=1)$) and a normally distributions error term ($\mu=0, \sigma=1$). The resulting variable was standardized to have a mean of 0 and standard deviation of 1. One hundred thousand replications were done for each situation (A, B, or C from Figure~\ref{fig:datasimple} by procedure (gain score, ANCOVA, or propensity matching).
+
+<<analysismethodssimple1b,size='footnotesize',echo=FALSE,eval=TRUE>>=
+# 0 gain, 1 ancova, 2 pm
+simpallmodels1b <- function(prior,treata,treatb,treatc,
+                          posta,postb,postc){
+  modvals <- matrix(nrow=12,ncol=6)
+  modvals[1,] <- c(0,1,summary(lm(posta - prior ~ treata))$coef[2,])
+  modvals[2,] <- c(1,1,summary(lm(postb - prior ~ treatb))$coef[2,])
+  modvals[3,] <- c(2,1,summary(lm(postc - prior ~ treatc))$coef[2,])
+  modvals[10,] <- c(0,4,summary(lm(posta ~ treata))$coef[2,])
+  modvals[11,] <- c(1,4,summary(lm(postb ~ treatb))$coef[2,])
+  modvals[12,] <- c(2,4,summary(lm(postc ~ treatc))$coef[2,])
+  modvals[4,] <- c(0,2,summary(lm(posta ~ treata + prior))$coef[2,])
+  modvals[5,] <- c(1,2,summary(lm(postb ~ treatb + prior))$coef[2,])
+  modvals[6,] <- c(2,2,summary(lm(postc ~ treatc + prior))$coef[2,])
+  propval <- glm(treata ~ prior,family="binomial")$fitted
+  mod <- Match(posta,treata,propval,estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+  modvals[7,] <- c(0,3,mod$est,mod$se,
+           zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)
+  propval <- glm(treatb ~ prior,family="binomial")$fitted
+  mod <- Match(postb,treatb,propval,estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+  modvals[8,] <- c(1,3,mod$est,mod$se,
+           zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)
+    propval <- glm(treatc ~ prior,family="binomial")$fitted
+    mod <- Match(postc,treatc,propval,estimand="ATE",BiasAdjust=TRUE,ties=TRUE)
+  modvals[9,] <- c(2,3,mod$est,mod$se,
+           zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)
+      return(modvals)
+       }
+qrank <- function(x) 1-(rank(x)+1)/(length(x)+2)
+@
+
+<<propancgainstudy1b,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+qrank <- function(x) 1-(rank(x)+1)/(length(x)+2)
+
+n <- 200
+reps <- 100000 #47 
+set.seed <- 28214
+#3*4 is a/b/c by 4 procedures
+simpvals1b <- matrix(ncol=7,nrow=reps*12) 
+for (i in 1:reps){
+  know <- rnorm(n)
+  teff <- runif(1,-1,1)
+  prior <- scale(know + rnorm(n))
+  propena <- scale(know + rnorm(n))  
+  propenb <- scale(prior + rnorm(n))  
+  propenc <- scale(know + prior + rnorm(n))  
+  treata <- rbinom(n,1,qrank(propena))
+  treatb <- rbinom(n,1,qrank(propenb))
+  treatc <- rbinom(n,1,qrank(propenc))
+  #posts differ just by rnorm, but two kept in case
+  #treatment effect added by someone
+  posta <- scale(teff*treata + know + rnorm(n))  
+  postb <- scale(teff*treatb + know + rnorm(n)) 
+  postc <- scale(teff*treatc + know + rnorm(n)) 
+  simpvals1b[((i-1)*12+1):(i*12),] <- 
+    cbind(simpallmodels1b(prior,treata,treatb,treatc,posta,postb,postc),rep(teff,12))
+    }
+
+colnames(simpvals1b) <- 
+    c("DAG","Procedure","ATE","seATE","zval","pval","teff")
+simpvals1b <- as.data.frame(simpvals1b)
+simpvals1b$DAG <- 
+  factor(recoder(simpvals1b$DAG,'0:"A";1:"B";2:"C" '),
+         levels=c("A","B","C"))
+simpvals1b$Procedure <- 
+  factor(recoder(simpvals1b$Procedure,
+          '1:"Gain";2:"ANCOVA";3:"PM";4:"t-test" '),
+         levels=c("Gain","ANCOVA","PM", "t-test"))
+
+@
+
+<<makingpreds,echo=FALSE,cache=TRUE>>=
+group <- interaction(simpvals1b$DAG,simpvals1b$Procedure)
+simpvals1b <- cbind(simpvals1b,group)
+#with(simpvals1b,tapply(zval,group,mean))
+#with(simpvals1b,tapply(zval,group,mean,tr=.2))
+
+xvals <- seq(-.999,.999,.001)
+lline <- function(x,y)
+  predict(loess(y~x,span=.25),data.frame(x=seq(-.999,.999,.001)))
+
+xyvals <- matrix(ncol=length(unique(group))+1,nrow=length(xvals))
+xyvals[,1] <- xvals
+counter <- 1
+for (i in unique(group)){
+    counter <- counter + 1
+    xyvals[,counter] <- lline(simpvals1b[group==i,]$teff,
+                              simpvals1b[group==i,]$zval)
+}
+@
+
+Figure~\ref{fig:predlines1b} was made predicting each statistical test ($t$ for gain scores and ANCOVA, $z$ for the propensity matching procedure). The loess procedure was used with a span of only 25\% and a quadratic curve. This allows non-linearity to be predicted. As can be seen the predicted values are linearly related to the effect size. The left panel shows situation A, where \emph{Pre} scores have no influence on propensity to receive treatment. Here the gain score has a mean test statistic of zero when there is no true effect, and a negative mean with negative true effects and positive means when the true effect is positive. The ANCOVA and propensity matching give downwardly biased estimates of the treatment effect (the effect is downward since those with low knowledge scores had high propensity scores). This means that for small positive effects the procedure was mean test effects in the opposite direction, what \citet{GelmanCarlin2014} call Type S (for sign) errors. For situation B, where the \emph{Pre} score does influence propensity to receive treatment, the ANCOVA and propensity matching perform well and the gain score more is biased over-estimating the treatment effect (again, it is overestimated since low \emph{Pre} scores had the higher propensity for being in the treatment). For situation C, the gain score procedure and the ANCOVA and propensity matching procedures are biased in opposite directions. This shows the importance of understanding the allocation mechanism when deciding how to analyze data. 
+
+<<predlines1b,fig.cap="Predicted test effects for all three situations in Figure~\\ref{fig:datasimple} for each statistical procedure. The predicted values were found using lowess (df=2, span=.25).",fig.width=6.1*.9,out.width="6.1in",fig.height=2.9*.9,out.height="2.9in",echo=FALSE,fig.align="center",echo=FALSE>>=
+par(mfrow=c(1,3))
+min1 <- min(xyvals[,2:10]) - .1
+max1 <- max(xyvals[,2:10]) - .1
+
+par(mar=c(5,4,6,1))
+plot(xyvals[,1],xyvals[,2],col="white",las=1,xlab="",
+     ylab="",xaxt='n',ylim=c(min1,max1))
+axis(1,seq(-1,1,.5),seq(-1,1,.5),gap.axis=.1)
+abline(v=0,col="grey80")
+abline(h=0,col="grey80")
+mtext(expression(- ~~Gain~~score),3,3.9,at=-1.41,col=2,cex=.7)
+mtext(expression(- ~~ANCOVA),3,2.75,at=-1.493,col=3,cex=.7)
+mtext(expression(- ~~Prop~~Matching),3,1.6,at=-1.24,col=4,cex=.7)
+mtext("A",3,0.3,0,cex=.8)
+mtext("Estimate test (t or z)",2,2.3,0,cex=.7)
+mtext("True effect",1,2.5,0,cex=.7)
+lines(xyvals[,1],xyvals[,2],col=2)
+lines(xyvals[,1],xyvals[,5],col=3)
+lines(xyvals[,1],xyvals[,8],col=4)
+
+plot(xyvals[,1],xyvals[,2],col="white",las=1,xlab="",
+     ylab="",xaxt='n',ylim=c(min1,max1))
+axis(1,seq(-1,1,.5),seq(-1,1,.5),gap.axis=.1)
+abline(v=0,col="grey80")
+abline(h=0,col="grey80")
+mtext("B",3,0.3,0,cex=.8)
+mtext("Estimate test (t or z)",2,2.3,0,cex=.7)
+mtext("True effect",1,2.5,0,cex=.7)
+lines(xyvals[,1],xyvals[,3],col=2)
+lines(xyvals[,1],xyvals[,6],col=3)
+lines(xyvals[,1],xyvals[,9],col=4)
+
+plot(xyvals[,1],xyvals[,2],col="white",las=1,xlab="",
+     ylab="",xaxt='n',ylim=c(min1,max1))
+axis(1,seq(-1,1,.5),seq(-1,1,.5),gap.axis=.1)
+abline(v=0,col="grey80")
+abline(h=0,col="grey80")
+mtext("C",3,0.3,0,cex=.8)
+mtext("Estimate test (t or z)",2,2.3,0,cex=.7)
+mtext("True effect",1,2.5,0,cex=.7)
+lines(xyvals[,1],xyvals[,4],col=2)
+lines(xyvals[,1],xyvals[,7],col=3)
+lines(xyvals[,1],xyvals[,10],col=4)
+  @
+
+\subsection{Causal Models, Colliders, and More Covariates}
+Causal models, and in particular something called a collider, will be the focus of this second example. A common example used to introduce colliders is the smoking-birth weight paradox \citep[e.g.][]{PearlEA2016}. Medical researchers are interested in how a mother smoking affects many things including infant mortality and birth weight. Infants of smokers appear to have higher infant mortality rates, but researchers found that conditioning on birth weight can reverse this effect. Researchers speculated that smoking might somehow protect low-weight infants. However, examining the possible causal models of this situation, which \citet{PearlEA2016} do, reveals the likely reason.
+
+Figure~\ref{fig:smoking} shows observed variables for smoking, birth weight, and infant mortality. There are other causes for both low birth weight and infant mortality and these are depicted with an unmeasured variable called \emph{Other}. Because many of these conditions affect infant mortality more than smoking does, it means conditioning on birth weight means you are comparing infants of mothers who smoked with infants who have conditions with higher infant mortality rates. 
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=.7]
+  \node[scale=1.,draw,rectangle] (smoke) at (1,5) {\emph{Smoking}};
+  \node[scale=1.,draw,ellipse] (other) at (1,0) {\emph{Other}};
+  \node[scale=1.,draw,rectangle] (lbw) at (4,2.5) {\emph{Weight}};
+  \node[scale=1.,draw,rectangle] (im) at (8,2.5) {\emph{Mortality}};
+  \node[scale=1.] (spacebottom) at (1,-1) {\phantom{Hello}};
+  
+%  \draw[rotate around={53.3:(1.8,6.74)}, red] (1.8,6.74) ellipse (17pt and 27.5pt);
+  
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](smoke) -- (lbw);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](lbw) -- (im);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](other) -- (lbw);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](smoke) to[out=0,in=130,] (im);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](other) to[out=0,in=230,] (im);
+
+\end{tikzpicture}
+\caption{\label{fig:smoking}A causal model for the smoking-birth weight paradox.}
+\end{figure}
+
+If the purpose is to measure the direct effect of smoking on infant mortality ($\mathit{Smoking} \rightarrow \mathit{Mortality}$), it is important to consider backdoor (also called indirect) paths between \emph{Smoking} and \emph{Mortality}. A path is any set of edges between two nodes where no node is included more than once (so non-recursive). There are two backdoor paths in Figure~\ref{fig:smoking}: 
+\begin{enumerate}[noitemsep]
+\item $\mathit{Smoking} \rightarrow \mathit{Weight} \rightarrow{Mortality}$. 
+\item $\mathit{Smoking} \rightarrow \mathit{Weight} \leftarrow \mathit{Other} \rightarrow{Mortality}$. 
+\end{enumerate}
+
+Paths can be either blocked or unblocked. If they are unblocked it means information can flow along them confounding measurement of the direct path. Therefore, often a goal of choosing covariates is to block backdoor paths. How detrimental the effects of an unblocked door path are depends on the product of the path coefficients \citep{Loehlin1998}. To understand blocking paths it is necessary to consider three ways in which three variables, call them $X = \mathit{eat cake}$, $Y = \mathit{be happy}$, and $Z = \mathit{smile}$, can be causally related:
+\begin{description}[noitemsep]
+\item{Chain:} $X \; (\mathit{eat \; cake}) \rightarrow Y \; (\mathit{be \; happy}) \rightarrow Z \; (\mathit{smile})$,
+\item{Fork:} $X \; (\mathit{eat \; cake})\leftarrow Y \; (\mathit{be \; happy}) \rightarrow Z \; (\mathit{smile})$, and 
+\item{Collider:} $X \; (\mathit{eat \; cake})\rightarrow Y \; (\mathit{be \; happy}) \leftarrow Z \;(\mathit{smile})$.
+\end{description}
+\noindent \citet[pp.~16--17]{Pearl2009} describes two rules to determine if the path between two nodes, $X$ and $Z$, is blocked and how this is affected by conditioning on the middle variable $Y$. 
+
+Pearl's first rule is that if a path contains a chain or a fork, it is unblocked unless the middle variable is conditioned upon. Chains and forks are associated with the phrases mediation and spurious correlation in the education literature. An example of an unblocked chain is that an exercise pamphlet can lead to students planning to exercise and this can lead to more exercise \citep{HillEA2007}. If you prevent students from the planning phase then giving participants a pamphlet is not as effective. A common textbook example of a fork is the positive association between ice cream consumption and murder in cities \citep[see also, Vigen, \citeyear{Vigen2015}]{Peters2013}. Warm weather causes both of these to increase. If you could condition on the weather by looking at one particular weather (e.g., sunny and 83$^{\circ}$F), this would block the path and assuming no other effects are present, the correlation would be near zero. In Figure~\ref{fig:smoking}, the path $\mathit{Smoking} \rightarrow \mathit{Weight} \rightarrow \mathit{Mortality}$ includes a chain (middle variable $\mathit{Weight}$) and therefore begins unblocked. Much of the justification for using covariates is to block paths like this. One way to block this path would be to condition upon \emph{Weight}. While it may seem useful to block this path, if the goal is to measure the complete causal effect of smoking, this path simply shows how the effects of smoking may be partially mediated by birth weight.
+
+Pearl's second rule is that a path with a collider begins block, but is unblocked if the collider, or any variable influenced by it (called \emph{descendants} in graph theory terminology), is conditioned upon. Colliders are less discussed in the education literature than forks and chains. \citet{Wright2017vam} uses a river metaphor to describe a collider. Imagine two tributaries arriving from different directions at a deep sink hole. The hole is the collider. The water from each would not reach the other; the path is blocked. If the hole is filled, water could flow between the tributaries and the path would be unblocked. \emph{Weight} is a collider in: $\mathit{Smoking} \rightarrow \mathit{Weight} \leftarrow \mathit{Other} \rightarrow \mathit{Mortality}$ because it is influenced by both smoking and other causes. One method for blocking the first path (conditioning on \emph{Weight}) will unblock the second path. It is unblocking this second path that creates the illusion that smoking decreases infant mortality (illusory if one thinks the ANCOVA measures the effect of smoking on infant mortality).  The smoking-birth weight paradox example was shown because it clearly shows the effects of conditioning on a collider. 
+
+The causal model in Figure~\ref{fig:smoking} is similar to ones in education. \citet{Wright2017vam} provides an education example.  It involves a collider that is measured before the treatment. Figure~\ref{fig:VAM} shows the data-creation model that could be assumed when educational systems attempt to estimate school effectiveness. Suppose this is for estimating the effectiveness of a 9th grade class. The effectiveness of the school is influence by environmental factors like the economics of the neighborhood. These also influence previous schooling and therefore grades from earlier years (denoted \emph{Pre}). Characteristics of the student and their family also influence grades before the 9th grade and afterwards (denoted \emph{Post}). The critical edge to estimate school effectiveness is the one from $\mathit{School} \rightarrow \mathit{Post}$. The backdoor path is:\\
+\begin{equation*}
+\mathit{School} \leftarrow \mathit{Environment} \rightarrow \mathit{Pre} \leftarrow \mathit{Knowledge} \rightarrow \mathit{Post} \quad.
+\end{equation*}
+The variable \emph{Pre} is a collider so conditioning on this unblocks this backdoor path thereby causing problems for estimating the direct effect. Using methods often used in the US to measure effectiveness, Wright (\citeyear{Wright2017vam}, \citeyear{Wright2018sgp}) showed that the estimated effectiveness can be negatively correlated with true effectiveness.
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[scale=.7]
+  \node[scale=1.,draw,ellipse] (env) at (0,6) {\emph{Environment}};
+  \node[scale=1.,draw,ellipse] (ind) at (6,6) {\emph{Knowledge}};
+  \node[scale=1.,draw,rectangle] (sch) at (1,2.5) {\emph{School}};
+  \node[scale=1.,draw,rectangle] (pre) at (4,3.5) {\emph{Pre}};
+  \node[scale=1.,draw,rectangle] (post) at (4,1) {\emph{Post}};
+  \node[scale=1.] (spacebottom) at (1,-1) {\phantom{Hello}};
+  
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](env) -- (sch);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](env) -- (pre);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](ind) -- (pre);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](sch) -- (post);
+  \draw[shorten >=0.10cm,shorten <=.0cm,->](ind) to[out=270,in=30,] (post);
+  
+\end{tikzpicture}
+\caption{\label{fig:VAM}A model for how data could arise that is used to estimate school effectiveness \citep[adapted from Figure~1 of][]{Wright2017vam}.}
+\end{figure}
+
+
+\paragraph{Example \#2a: How Manifest and Latent Variables Relate}
+The example used in this section is more complex than Examples \#1a and \#1b, to reflect--at least to some extent--the complexity of causal models applicable for many education research situations. It is common to measure several other variables with the hope of blocking (and keeping blocked) all backdoor paths thereby isolating the direct effect. 
+
+Figure~\ref{fig:datamodel2} shows the data-creation model assumed. There are three latent variables (\emph{Environment}, \emph{Knowledge}, and \emph{Grit}) and two key observed variables (whether the person had the \emph{Treatment} and the \emph{Post} score). It is assumed here that \emph{Treatment} is influenced by the \emph{Environment} the student is in (e.g., geographic location). In addition, it is assumed that there are three measured variables that are related to each of the latent variables. For the simulation each of these observed variables have been created to be correlated approximately $r = .50$ with their associated latent variable, but how they are associated with the latent variable differs. One influences the latent variable (e.g., $\mathit{e1} \rightarrow \mathit{Environment}$), one is influenced by the latent variable (e.g., $\mathit{Pre} \leftarrow \mathit{Knowledge}$), and for the other one, another variable (depicted just with a circle) influences both (e.g., $\mathit{g3} \leftarrow \fullmoon \rightarrow \mathit{Grit}$). While this model looks complex, like all models in social science it is still a simplification. Several of the nodes listed likely influence others (e.g., $\mathit{Environment} \rightarrow \mathit{Grit}$; $\mathit{Grit} \rightarrow \mathit{Pre}$), there are many other constructs that could play a role, and there are many other variables that could be measured. It is worth noting that observed variables are not placed along the paths from \emph{Treatment}, \emph{Knowledge}, and \emph{Grit} to \emph{Post}, and there are no nodes just affecting \emph{Treatment}. These effects could provide additional ways to measure the treatment effect. There are several ways to address measurement of interventions and readers are encouraged to consult textbooks devoted to this \citep[e.g.,][]{ImbensRubin2015,MorganWinship2007,PearlEA2016}.
+
+\begin{figure}
+\centering
+\begin{tikzpicture}
+  \node[scale=1.1,draw,ellipse] (env) at (8.3,11) {\emph{Environment}};
+  \node[scale=1,draw,rectangle] (e1) at (9.3,12.2) {$e_1$};
+  \node[scale=1,draw,rectangle] (e2) at (8.3,12.2) {$e_2$};
+  \node[draw, circle, scale=.57] (phantomp) at (6.8,12.2) {\phantom{W}};
+  \node[scale=1,draw,rectangle] (e3) at (5.6,11.4) {$e_3$};
+  \node[scale=1.1,draw,rectangle] (treat2) at (8.3,7.7) {\emph{Treatment}};
+  \node[scale=1.1,draw,ellipse] (know2) at (12,9.5) {\emph{Knowledge}};
+  \node[scale=1,draw,rectangle] (x1) at (11,11.3) {$k_1$};
+  \node[scale=1,draw,rectangle] (Prior) at (12.4,11.3) {\emph{Pre}};
+  \node[draw, circle, scale=.57] (phantomx) at (9.5,9.5) {\phantom{W}};
+  \node[scale=1,draw,rectangle] (x3) at (9.5,8.5) {$k_3$};
+  \node[scale=1.1,draw,ellipse] (other2) at (15.2,11) {\emph{Grit}};
+  \node[scale=1,draw,rectangle] (o1) at (14.2,12.2) {$g_1$};
+  \node[scale=1,draw,rectangle] (o2) at (15.2,12.2) {$g_2$};
+  \node[draw, circle, scale=.57] (phantomo) at (16.2,12.2) {\phantom{W}};
+  \node[scale=1,draw,rectangle] (o3) at (17,11.4) {$g_3$};
+  \node[scale=1.2] (spacebottom) at (10,5.5) {\phantom{Hello}};
+  \node[scale=1.1,draw,rectangle] (post2) at (12,6) {\emph{Post}};
+  
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](env) -- (treat2);
+  \draw[shorten >=0.15cm,shorten <=.0cm,->](env) -- (know2);
+  \draw[shorten >=0.15cm,shorten <=.28cm,->](treat2) -- (post2);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](know2) -- (post2);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](other2) -- (12.5,6.27);
+  \draw[shorten >=0.15cm,shorten <=.0cm,->](other2) -- (know2);
+  
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](e1) -- (env);
+  \draw[shorten >=0.15cm,shorten <=.0cm,->](phantomp) -- (env);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](phantomp) -- (e3);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](env) -- (e2);
+
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](x1) -- (know2);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](phantomx) -- (know2);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](phantomx) -- (x3);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](know2) -- (Prior);
+  
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](o1) -- (other2);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](phantomo) -- (other2);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](phantomo) -- (o3);
+  \draw[shorten >=0.1cm,shorten <=.0cm,->](other2) -- (o2);
+  \draw[rotate around={66:(10.25,6.8)}, red] (10.25,6.8) ellipse (8.4pt and 34.7pt);
+
+\end{tikzpicture}
+\caption{\label{fig:datamodel2} The data model with both latent and observed variables. The direct effect from \emph{Treatment} to \emph{Post}, enclosed in the {\color{red}red ellipse}, is the construct the researchers wish to measure accurately. To make the figure less cluttered the individual node error variables are not shown.}
+\end{figure}
+
+The variable \emph{Pre} is named in Figure~\ref{fig:datamodel2} as opposed to just calling it $x2$ because of its central role in the gain score model. It is assumed that it is on the same scale as \emph{Post} (in the simulation both have means of zero and standard deviations of one). It is assumed that $\mathit{Post} - \mathit{Pre}$ is meaningful and that this difference represents the same \emph{gain} throughout the span of \emph{Pre}. This is a vital assumption for the gain score approach. \emph{Pre} is influenced by \emph{Knowledge}. In graph theory terminology it is a descendant of \emph{Knowledge}. According to Pearl's second rule, conditioning on \emph{Pre} unblocks the path $\mathit{Treatment} \leftarrow \mathit{Environment} \rightarrow \mathit{Knowledge} \leftarrow \mathit{Other} \rightarrow \mathit{Post}$ because it is a descendant of a collider (Example \#2b explores this further).
+
+As with Example \#1a, the data were created so that true treatment effect is 0. \emph{Post} is the sum of \emph{Knowledge}, \emph{Grit}, and a $N(\mu=0, \sigma=1)$ error term, and then standardized. To create the observed variables so that they have correlations of approximately $r = .5$ with their associated latent variable required a few steps (this could be done in several ways). These will be shown for $k_1, Pre, k_3$. \texttt{kph} is the unnamed latent variable influencing \emph{Knowledge} (\texttt{know} in the code). The \textsf{R} code is:
+<<eval=FALSE>>=
+  kph <- rnorm(n)
+  k1 <- rnorm(n)
+  k3 <- scale(kph + .71*rnorm(n)) 
+  know <- scale(.85*kph + .6935*k1 + .6*other + .6*env)
+  pre <- scale(sqrt(.25)*know + sqrt(.75)*rnorm(n))
+@
+
+\noindent First, the variables \texttt{kph} and \texttt{k1} are drawn from unit Normal distributions. \texttt{k3} is created by adding \texttt{kph} and a unit Normal variable multiplied by slightly more than 1, and this sum standardized. The latent variable \texttt{know} is the standardized sum of \texttt{kph}, \texttt{k1}, \texttt{grit}, and a Normal variable, each weighted to produce the desired correlation. \texttt{Pre} is the standardized sum of weighted \texttt{know} and a Normal variable. The weights were chosen so that the correlation of the variables was .5. As shown in Example \#2b, the results are sensitive to these weights.
+
+The propensity to be in the treatment condition was the quantile (the \texttt{qrank} function in the appendix) of the \emph{Environment} variable (\texttt{env}). The contributions from \emph{Environment} and \emph{Other} to \emph{Knowledge} are equal, and a Normally distributed random error is also added. The code is in the Appendix. 
+
+<<ex2allcovs,echo=FALSE,eval=TRUE>>=
+# 0 gain, 1 ancova, 2 pm
+ests <- function(e1,e2,e3,x1,prior,x3,o1,o2,o3,treat,post,know){
+     covs <- cbind(e1,e2,e3,x1,x3,o1,o2,o3)
+     vals3 <- matrix(nrow=3,ncol=4) 
+     vals3[1,] <- summary(lm(post - prior ~ treat + covs))$coef[2,]
+     vals3[2,] <- summary(lm(post ~ treat + prior + covs))$coef[2,]
+     propval <- glm(treat ~ prior + covs,family="binomial")$fitted
+     mod <- Match(post,treat,propval,estimand="ATE")
+     vals3[3,] <- c(mod$est,mod$se,
+                       zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)
+ return(vals3) }
+qrank <- function(x) 1-(rank(x)+1)/(length(x)+2)
+@
+
+The study had $n = 200$ and there were 10,000 replications per condition. This number of replications was used so that the standard error for the $z$ value for each statistical model was approximately 0.01 (and thus the widths of the 95\% confidence intervals about .04). 
+
+<<propancgainstudy1,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+n <- 200
+reps <- 10000 #47 
+set.seed <- 49811
+vals <- matrix(ncol=4,nrow=reps*3)
+for (i in 1:reps){
+  eph <- rnorm(n)
+  e1 <- rnorm(n)
+  e3 <- scale(eph + 1.0371*rnorm(n)) #
+  env <- scale(.3*eph + .2082*e1  + .2*rnorm(n))
+  e2 <- scale(sqrt(.25)*env + sqrt(.75)*rnorm(n))
+  oph <- rnorm(n)
+  o1 <- rnorm(n)
+  o3 <- scale(oph + 1.0371*rnorm(n)) #
+  other <- scale(.3*oph + .2082*o1 + .2*rnorm(n))
+  o2 <- scale(sqrt(.25)*other + sqrt(.75)*rnorm(n))
+  xph <- rnorm(n)
+  x1 <- rnorm(n)
+  x3 <- scale(xph + .71*rnorm(n)) #
+  know <- scale(.85*xph + .6935*x1 + .6*other + .6*env)
+  prior <- scale(sqrt(.25)*know + sqrt(.75)*rnorm(n))
+  propenval <- qrank(env)  
+  treat <- rbinom(n,1,propenval) 
+  post <- scale(other + 0*treat + know + rnorm(n)) 
+  vals[((i-1)*3+1):(i*3),] <- ests(e1,e2,e3,x1,prior,x3,
+                                    o1,o2,o3,treat,post,know)
+    }
+vals <- cbind(rep(1:3,reps),vals)
+# 1 gain, 2 ANCOVA, 3 PM
+colnames(vals) <- 
+    c("statmodel","ATE","seATE","zval","pval")
+ex2vals <- as.data.frame(vals)
+@
+
+<<echo=FALSE>>=
+#repeating just for running bits of code
+lbmean <- function(x){
+  se <- sd(x)/sqrt(length(x))
+  lb <- mean(x) - qt(.975,length(x)-1)*se
+ return(lb)}
+ubmean <- function(x){
+  se <- sd(x)/sqrt(length(x))
+  ub <- mean(x) + qt(.975,length(x)-1)*se
+ return(ub)}
+@
+
+<<ex2vals,echo=FALSE,eval=TRUE>>=
+xtab1 <- with(ex2vals,tapply(zval,statmodel,mean))
+xtab2 <- with(ex2vals,tapply(zval,statmodel,lbmean))
+xtab3 <- with(ex2vals,tapply(zval,statmodel,ubmean))
+d2 <- function(x) sprintf("%1.2f",x)
+@
+
+
+<<ex2allbut1covs,echo=FALSE,eval=TRUE>>=
+# 0 gain, 1 ancova, 2 pm
+estswo1 <- function(e1,e2,e3,x1,prior,x3,o1,o2,o3,treat,post,know){
+     covs <- cbind(e1,e2,e3,x1,x3,o1,o2,o3)
+     covs2 <- cbind(covs,prior)
+     vals3wo1 <- matrix(nrow=3*ncol(covs2),ncol=6)
+     for (j in 1:ncol(covs2)){
+       if (j < 9) vals3wo1[(j-1)*3+1,] <- 
+           c(1,j,summary(lm(post - prior ~ treat + covs[,-j]))$coef[2,])
+       vals3wo1[(j-1)*3+2,] <- c(2,j,summary(lm(post ~ treat + covs2[,-j]))$coef[2,])
+       propval <- glm(treat ~ prior + covs2[,-j],family="binomial")$fitted
+       mod <- Match(post,treat,propval,estimand="ATE")
+      vals3wo1[(j-1)*3+3,] <- c(3,j,mod$est,mod$se,
+                       zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)}
+ return(vals3wo1) }
+qrank <- function(x) 1-(rank(x)+1)/(length(x)+2)
+@
+
+
+<<propancgainstudyex2wo,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+n <- 200
+reps <- 10000 #47 #10000 #47 
+set.seed <- 9811
+vals <- matrix(ncol=6,nrow=reps*3*9)
+for (i in 1:reps){
+  eph <- rnorm(n)
+  e1 <- rnorm(n)
+  e3 <- scale(eph + 1.0371*rnorm(n)) #
+  env <- scale(.3*eph + .2082*e1  + .2*rnorm(n))
+  e2 <- scale(sqrt(.25)*env + sqrt(.75)*rnorm(n))
+  oph <- rnorm(n)
+  o1 <- rnorm(n)
+  o3 <- scale(oph + 1.0371*rnorm(n)) #
+  other <- scale(.3*oph + .2082*o1 + .2*rnorm(n))
+  o2 <- scale(sqrt(.25)*other + sqrt(.75)*rnorm(n))
+  xph <- rnorm(n)
+  x1 <- rnorm(n)
+  x3 <- scale(xph + .71*rnorm(n)) #
+  know <- scale(.85*xph + .6935*x1 + .6*other + .6*env)
+  prior <- scale(sqrt(.25)*know + sqrt(.75)*rnorm(n))
+  propenval <- qrank(env)  
+  treat <- rbinom(n,1,propenval) 
+  post <- scale(other + 0*treat + know + rnorm(n)) 
+  vals[((i-1)*27+1):(i*27),] <- estswo1(e1,e2,e3,x1,prior,x3,
+                                    o1,o2,o3,treat,post,know)
+    }
+
+colnames(vals) <- 
+    c("statmodel","MissCOV","ATE","seATE","zval","pval")
+ex2vals <- as.data.frame(vals)
+@
+
+<<tab:ex2a,echo=FALSE,results='asis'>>=
+xtab <- with(ex2vals,tapply(zval,list(MissCOV,statmodel),mean)) 
+xtab <- rbind(xtab,xtab1)
+rownames(xtab) <- c("e1","e2","e3","x1","x3","o1","o2","o3","Pre","ALL")
+xtab <- xtab[c(1:4,9,5:8,10),]
+colnames(xtab) <- c("Gain Score","ANCOVA","Prop. Match")
+
+#print(xtable(xtab,caption="Exp 2, excluding each one"),
+#      hline.after=c(-1,0,3,6,nrow(xtab)-1,nrow(xtab)))
+xtabwo1 <- xtab
+@
+
+
+<<ex2bwo3,echo=FALSE,eval=TRUE>>=
+# 0 gain, 1 ancova, 2 pm
+estswo2b <- function(e1,e2,e3,x1,prior,x3,o1,o2,o3,treat,post,know){
+     covs <- cbind(e1,e2,e3,x1,prior,x3,o1,o2,o3)
+     covs2 <- covs
+     vals3wo2b <- matrix(nrow=3*3,ncol=6)
+     sets <- list(1:3,4:6,7:9)
+     for (j in 1:3){
+       ifelse (j == 2, vals3wo2b[(j-1)*3+1,] <- 
+         c(1,j,summary(lm(post - prior ~ treat + covs[,-sets[[j]]]))$coef[2,]),
+                       vals3wo2b[(j-1)*3+1,] <- 
+         c(1,j,summary(lm(post - prior ~ treat + covs[,-c(5,sets[[j]])]))$coef[2,]))
+       vals3wo2b[(j-1)*3+2,] <- 
+         c(2,j,summary(lm(post ~ treat + covs[,-sets[[j]]]))$coef[2,])
+       propval <- glm(treat ~ prior + covs[,-sets[[j]]],family="binomial")$fitted
+       mod <- Match(post,treat,propval,estimand="ATE")
+      vals3wo2b[(j-1)*3+3,] <- c(3,j,mod$est,mod$se,
+                       zval<-mod$est/mod$se,(1 - pnorm(abs(zval)))*2)}
+      return(vals3wo2b) }
+qrank <- function(x) 1-(rank(x)+1)/(length(x)+2)
+@
+
+<<propancgainstudyex2wob,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+n <- 200
+reps <- 10000 #47 #10000 #47 
+set.seed <- 199
+vals <- matrix(ncol=6,nrow=reps*3*3)
+for (i in 1:reps){
+  eph <- rnorm(n)
+  e1 <- rnorm(n)
+  e3 <- scale(eph + 1.0371*rnorm(n)) #
+  env <- scale(.3*eph + .2082*e1  + .2*rnorm(n))
+  e2 <- scale(sqrt(.25)*env + sqrt(.75)*rnorm(n))
+  oph <- rnorm(n)
+  o1 <- rnorm(n)
+  o3 <- scale(oph + 1.0371*rnorm(n)) #
+  other <- scale(.3*oph + .2082*o1 + .2*rnorm(n))
+  o2 <- scale(sqrt(.25)*other + sqrt(.75)*rnorm(n))
+  xph <- rnorm(n)
+  x1 <- rnorm(n)
+  x3 <- scale(xph + .71*rnorm(n)) #
+  know <- scale(.85*xph + .6935*x1 + .6*other + .6*env)
+  prior <- scale(sqrt(.25)*know + sqrt(.75)*rnorm(n))
+  propenval <- qrank(env)  
+  treat <- rbinom(n,1,propenval) 
+  post <- scale(other + 0*treat + know + rnorm(n)) 
+#the probl
+    vals[((i-1)*9+1):(i*9),] <- estswo2b(e1,e2,e3,x1,prior,x3,
+                                    o1,o2,o3,treat,post,know)
+    }
+
+colnames(vals) <- 
+    c("statmodel","MissSET","ATE","seATE","zval","pval")
+ex2vals <- as.data.frame(vals)
+@
+
+
+<<tab:ex2bsecond,echo=FALSE,results='asis'>>=
+xtab <- with(ex2vals,tapply(zval,list(MissSET,statmodel),mean)) 
+#xtab <- rbind(xtab)
+rownames(xtab) <- paste("Without the three",c("Environment","Knowledge","Grit"),"Variables")
+colnames(xtab) <- c("Gain Score","ANCOVA","Prop. Match")
+
+#print(xtable(xtab,caption="Exp 2, without sets of three"),hline.after=c(-1,0,nrow(xtab)))
+
+@
+
+
+<<tab:ex2bBOTHex2b,echo=FALSE,results='asis'>>=
+rownames(xtabwo1)[1:9] <- paste("without just",
+      c("$e1$","$e2$","$e3$","\\emph{k1}",
+        "\\emph{Pre}","$k3$","$g1$","$g2$","$g3$"))
+xtabx <- rbind(xtabwo1[1:(nrow(xtabwo1)-1),],xtab,
+               xtabwo1[nrow(xtabwo1),]) 
+rownames(xtabx)[nrow(xtabx)] <- "All covariates included"
+xtabx <- xtabx[c(13,10,1:3,11,4:6,12,7:9),]
+print(xtable(xtabx,label="tab:both",
+             caption="The mean $t$ (gain score and ANCOVA) and $z$ values when using all the covariates, excluding each set of three covariates, and excluding each individual covariate for Example \\#2a. The data were created so that the true treatment effect was zero."),
+      hline.after=c(-1,0,1,5,9,nrow(xtabx)),caption.placement="top",
+      sanitize.rownames.function=function(x){x})
+
+@
+
+The mean $t$ (for gain score and ANCOVA) and $z$ (for propensity matching) values for the treatment are shown in Table~\ref{tab:both}. The first line shows the mean values when all nine observed variables are used as covariates. The mean for the gain score model is approximately zero, so provides nearly unbiased estimates. It is important, however, not to conclude that the gain score methods works well for the data-creation model in Figure~\ref{fig:datamodel2}. The analyst should test the sensitivity of these findings varying the strength of the different relationships (Leite's [\citeyear{Leite2017}] sixth step). This is shown in Example \#2b.
+
+Both the ANCOVA and propensity matching procedures are biased, suggesting the treatment has a negative effect. As with Examples \#1a and \#1b, the ANCOVA procedure is more biased than propensity matching. Next, sets of covariates were excluded. For the gain score model excluding any variable created a slight downward bias. For the ANCOVA and propensity matching procedures excluding the three observed variables related to \emph{Knowledge} increased the bias further. The increased bias, for both these statistical procedures, was most evident for $e1$ and $e3$, but excluding each of the three increased the bias. This shows all three of these variables are useful to include in this situation for these statistical procedures.
+
+Excluding the three observed variables associated with \emph{Knowledge} slightly increased the bias for ANCOVA and slightly decreased it for propensity matching. However, the effect of excluding the three individual observed variables was different. For both ANCOVA and propensity matching, excluding $k1$ and $k3$ decreased the bias, but excluding \emph{Pre} increased the bias, substantially for ANCOVA. Excluding all the \emph{Grit} variables decreased the bias, though excluding just $g2$ had only minimal effect for ANCOVA and none of these greatly affected the propensity matching bias. 
+
+\paragraph{Example \#2b: Improving the Pre score as a measure of Knowledge}
+Leite's (\citeyear{Leite2017}) sixth step for propensity matching--exploring the sensitive of your conclusions to variations--is relevant for all simulations. Example \#2a appears to show that the gain score model may be better for the data-creation model in Figure~\ref{fig:datamodel2}. However, it is important to examine how this conclusion is affected by changing the weights used to create the data.
+
+Here only one variation is chosen. Many people create assessments to accurately measure \emph{Knowledge} and may combine many such assessments into one \emph{Pre} score. This aggregate score might correlate with \emph{Knowledge} more highly than the $r = .5$ in Example \#2a. Only one change was made to the code. This line:
+
+<<eval=FALSE>>=
+pre <- scale(sqrt(.25)*know + sqrt(.75)*rnorm(n))
+@
+\noindent is changed to this:
+<<eval=FALSE>>=
+pre <- scale(sqrt(.75)*know + sqrt(.25)*rnorm(n))
+@
+\noindent The correlation between \emph{Pre} and \emph{Knowledge} goes up to about $r = .87$. The simulation was repeated and the results shown in Table~\ref{tab:ex2bres}. Now the gain score model produces positively biased estimates, and the ANCOVA and propensity matching procedures produce negatively biased estimates, though these are not as extreme as with Example \#2a. As with the previous example, the propensity matching methods is less biased than ANCOVA. 
+
+<<propancgainstudy1ex2b,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+n <- 200
+reps <- 10000 #47 
+set.seed <- 49811
+vals <- matrix(ncol=4,nrow=reps*3)
+for (i in 1:reps){
+  eph <- rnorm(n)
+  e1 <- rnorm(n)
+  e3 <- scale(eph + 1.0371*rnorm(n)) #
+  env <- scale(.3*eph + .2082*e1  + .2*rnorm(n))
+  e2 <- scale(sqrt(.25)*env + sqrt(.75)*rnorm(n))
+  oph <- rnorm(n)
+  o1 <- rnorm(n)
+  o3 <- scale(oph + 1.0371*rnorm(n)) #
+  other <- scale(.3*oph + .2082*o1 + .2*rnorm(n))
+  o2 <- scale(sqrt(.25)*other + sqrt(.75)*rnorm(n))
+  xph <- rnorm(n)
+  x1 <- rnorm(n)
+  x3 <- scale(xph + .71*rnorm(n)) #
+  know <- scale(.85*xph + .6935*x1 + .6*other + .6*env)
+  prior <- scale(sqrt(.75)*know + sqrt(.25)*rnorm(n))
+  propenval <- qrank(env)  
+  treat <- rbinom(n,1,propenval) 
+  post <- scale(other + 0*treat + know + rnorm(n)) 
+  vals[((i-1)*3+1):(i*3),] <- ests(e1,e2,e3,x1,prior,x3,
+                                    o1,o2,o3,treat,post,know)
+    }
+vals <- cbind(rep(1:3,reps),vals)
+# 1 gain, 2 ANCOVA, 3 PM
+colnames(vals) <- 
+    c("statmodel","ATE","seATE","zval","pval")
+ex2vals <- as.data.frame(vals)
+@
+
+
+<<ex2valsex2b,echo=FALSE,eval=TRUE>>=
+xtab1 <- with(ex2vals,tapply(zval,statmodel,mean))
+xtab2 <- with(ex2vals,tapply(zval,statmodel,lbmean))
+xtab3 <- with(ex2vals,tapply(zval,statmodel,ubmean))
+d2 <- function(x) sprintf("%1.2f",x)
+@
+
+
+<<propancgainstudyex2woex2b,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+n <- 200
+reps <- 10000 #47 
+set.seed <- 9811
+vals <- matrix(ncol=6,nrow=reps*3*9)
+for (i in 1:reps){
+  eph <- rnorm(n)
+  e1 <- rnorm(n)
+  e3 <- scale(eph + 1.0371*rnorm(n)) #
+  env <- scale(.3*eph + .2082*e1  + .2*rnorm(n))
+  e2 <- scale(sqrt(.25)*env + sqrt(.75)*rnorm(n))
+  oph <- rnorm(n)
+  o1 <- rnorm(n)
+  o3 <- scale(oph + 1.0371*rnorm(n)) #
+  other <- scale(.3*oph + .2082*o1 + .2*rnorm(n))
+  o2 <- scale(sqrt(.25)*other + sqrt(.75)*rnorm(n))
+  xph <- rnorm(n)
+  x1 <- rnorm(n)
+  x3 <- scale(xph + .71*rnorm(n)) #
+  know <- scale(.85*xph + .6935*x1 + .6*other + .6*env)
+  prior <- scale(sqrt(.75)*know + sqrt(.25)*rnorm(n))
+  propenval <- qrank(env)  
+  treat <- rbinom(n,1,propenval) 
+  post <- scale(other + 0*treat + know + rnorm(n)) 
+  vals[((i-1)*27+1):(i*27),] <- estswo1(e1,e2,e3,x1,prior,x3,
+                                    o1,o2,o3,treat,post,know)
+    }
+
+colnames(vals) <- 
+    c("statmodel","MissCOV","ATE","seATE","zval","pval")
+ex2vals <- as.data.frame(vals)
+@
+
+<<tab:ex2bsec,echo=FALSE,results='asis'>>=
+xtab <- with(ex2vals,tapply(zval,list(MissCOV,statmodel),mean)) 
+xtab <- rbind(xtab,xtab1)
+rownames(xtab) <- c("e1","e2","e3","x1","x3","o1","o2","o3","Pre","ALL")
+xtab <- xtab[c(1:4,9,5:8,10),]
+colnames(xtab) <- c("Gain Score","ANCOVA","Prop. Match")
+
+#print(xtable(xtab,caption="Exp 2, excluding each one"),
+#      hline.after=c(-1,0,3,6,nrow(xtab)-1,nrow(xtab)))
+xtabwo1 <- xtab
+@
+
+
+
+
+<<propancgainstudyex2wobex2b,size="footnotesize",cache=TRUE,echo=FALSE,eval=TRUE>>=
+n <- 200
+reps <- 10000 #47 
+set.seed <- 199
+vals <- matrix(ncol=6,nrow=reps*3*3)
+for (i in 1:reps){
+  eph <- rnorm(n)
+  e1 <- rnorm(n)
+  e3 <- scale(eph + 1.0371*rnorm(n)) #
+  env <- scale(.3*eph + .2082*e1  + .2*rnorm(n))
+  e2 <- scale(sqrt(.25)*env + sqrt(.75)*rnorm(n))
+  oph <- rnorm(n)
+  o1 <- rnorm(n)
+  o3 <- scale(oph + 1.0371*rnorm(n)) #
+  other <- scale(.3*oph + .2082*o1 + .2*rnorm(n))
+  o2 <- scale(sqrt(.25)*other + sqrt(.75)*rnorm(n))
+  xph <- rnorm(n)
+  x1 <- rnorm(n)
+  x3 <- scale(xph + .71*rnorm(n)) #
+  know <- scale(.85*xph + .6935*x1 + .6*other + .6*env)
+  prior <- scale(sqrt(.75)*know + sqrt(.25)*rnorm(n))
+  propenval <- qrank(env)  
+  treat <- rbinom(n,1,propenval) 
+  post <- scale(other + 0*treat + know + rnorm(n)) 
+#the probl
+    vals[((i-1)*9+1):(i*9),] <- estswo2b(e1,e2,e3,x1,prior,x3,
+                                    o1,o2,o3,treat,post,know)
+    }
+
+colnames(vals) <- 
+    c("statmodel","MissSET","ATE","seATE","zval","pval")
+ex2vals <- as.data.frame(vals)
+@
+
+
+<<tab:ex2bex2b,echo=FALSE,results='asis'>>=
+xtab <- with(ex2vals,tapply(zval,list(MissSET,statmodel),mean)) 
+#xtab <- rbind(xtab)
+rownames(xtab) <- paste("Without the three",c("Environment","Knowledge","Grit"),"Variables")
+colnames(xtab) <- c("Gain Score","ANCOVA","Prop. Match")
+
+#print(xtable(xtab,caption="Exp 2, without sets of three"),hline.after=c(-1,0,nrow(xtab)))
+
+@
+
+
+<<tab:ex2bBOTHex2bb,echo=FALSE,results='asis'>>=
+rownames(xtabwo1)[1:9] <- paste("without just",
+      c("$e1$","$e2$","$e3$","\\emph{k1}",
+        "\\emph{Pre}","$k3$","$g1$","$g2$","$g3$"))
+xtabx <- rbind(xtabwo1[1:(nrow(xtabwo1)-1),],xtab,
+               xtabwo1[nrow(xtabwo1),]) 
+rownames(xtabx)[nrow(xtabx)] <- "All covariates included"
+xtabx <- xtabx[c(13,10,1:3,11,4:6,12,7:9),]
+print(xtable(xtabx,label="tab:ex2bres",
+             caption="The mean $t$ (gain score and ANCOVA) and $z$ values when using all the covariates, excluding each set of three covariates, and excluding each individual covariate for Example \\#2b. The data were created so that the true treatment effect was zero."),
+      hline.after=c(-1,0,1,5,9,nrow(xtabx)),caption.placement="top",
+      sanitize.rownames.function=function(x){x})
+
+@
+
+
+
+\section{Summary}
+Gain score, ANCOVA, and propensity matching procedures are all used with the hope of isolating the causal effect of an intervention on an outcome measure. Brief introductions were provided for these included \textsf{R} code and output. No statistical procedure can guarantee to isolate this effect in all situations, but each can be useful depending on the model that led to the data. When more effects are added to the data-creation model it can become impossible to block all backdoor paths with any statistical procedure. There are situations where no statistical procedure can accurately estimate a treatment effect. The goal is to choose which procedure is most accurate and to warn readers about this limitation. It is important to make readers aware of the assumptions made when trying to reach causal conclusions.
+
+Four simulations were presented to provide examples for how researchers could decide among these procedures.  The overall purpose of this paper is to show that it is important to consider how the data may have arisen, and Examples \#1a and \#1b focus on understanding how people are allocated to groups. If there are several different plausible models that could account for the data, it is worth examining several of these using simulation methods as was done here. Examples \#1a and \#1b showed that that there are situations where the gain score model does better than the ANCOVA and propensity matching procedures, and situations where it does worse. In particular, if the covariate influences the propensity to be in the treatment condition, the gain score method is biased, but the ANCOVA and propensity matching methods are not. The results show the opposite is true when other variables influence propensity, but the covariate does not. These findings are consistent with \citet{HollandRubin1983,Pearl2016,Wright2006}. The purpose of Examples \#2a and \#2b were to show that the choice of covariates is important. They showed that it is important to consider that way in which different observed variables may relate to the latent variables. 
+
+Unfortunately, the analyst will not know the true causal model underlying the data. Assumptions must be made in order to make causal conclusions \citep{Cartwright2014}. This is particularly true when random assignment is not used. The analyst can try several causal models to test if the statistical approach is sensitive to these changes (Leite's sixth step). Researchers should be prepared for reviewers and readers to propose their own causal models. Enough information should be provided to allow these peers to simulate data to show if the statistical procedure used would be appropriate for their choice of causal model. When there are differences, it is often necessary to conduct further research designed to evaluate which set of causal models is more appropriate. This can be time-consuming. Statistical procedures for intervention studies without random allocation are not simple. \citet{CampbellStanley1963} describe several threats to the validity. Some, but not all, of these are eased by using random assignment, which they encourage when practical. 
+
+It is important to conclude by stressing that plotting the data and exploratory/descriptive data analysis is an important step (e.g., Figure~\ref{fig:plotscat}). However, the the choice of plots and descriptive statistics is also often influenced by the assumptions made. If you are uncertain which procedures to use, you can use multiple approaches, but you should describe these in the write-up (i.e., not use several and just report the one with the $p$-value most likely to lead to publication). \citet{SteegenEA2016} take this to an extreme. They advise analysts to run many potential models and then report the distribution of results and weight them for plausibility. Here, the advice is first think about how the data may have arise to try to limit the choice to a small number of plausible models. 
+
+
+\bibliographystyle{apacite}
+\bibliography{../../AllRefs}
+
+\clearpage
+\begin{center}
+{\large\bf Appendix}
+\end{center}
+\subsection{\textsf{R} Code for the simulations}
+This paper was written using \LaTeX{} with \textbf{knitr} \citet{knitr}. This entire document in both \texttt{Rnw} and \texttt{pdf} formats is at \url{https://github.com/dbrookswr/GainAncPM}. A \LaTeX{} editor will need to be set-up (\url{https://yihui.org/knitr/demo/editors/}) and several \LaTeX and \textsf{R} packages will need to be installed to compile the \texttt{Rnw} file.
+
+The code to create the data and run the simulation used in Example \#1a is:
+
+\begin{singlespacing}
+<<propancgainstudy3simpler,eval=FALSE,echo=TRUE,size="small">>=
+@
+\end{singlespacing}
+
+The function \texttt{simpallmodels} runs all the statistical models and returns a six-column matrix of: the procedure (gain score, ANCOVA, propensity matching), which covariates are included, the effect estimate, its standard error, the $t$ (from \texttt{lm}) or $z$ (from \texttt{glm} and \texttt{Match}), and the associated two-tailed $p$-value. It calls three functions, \texttt{gain}, \texttt{anc}, and \texttt{pm}, which run the models for the gain score, ANCOVA, and propensity matching procedures, respectively. The package \textbf{Matching} \citep{Matching} needs to be installed and loaded since it is called by the \texttt{pm} function. This function and the functions it calls are here:
+
+\begin{singlespacing} 
+<<analysismethodssimple,eval=FALSE,echo=TRUE,size="small">>=
+@
+\end{singlespacing}
+
+The code for \#1b is very similar for \#1a, but is repeated where for documentation purposes.
+\begin{singlespacing}
+<<propancgainstudy1b,eval=FALSE,echo=TRUE,size="small">>=
+@
+and  
+<<analysismethodssimple1b,eval=FALSE,echo=TRUE,size="small">>=
+@
+
+\end{singlespacing}
+
+
+The code to create the data and run the simulation for Example \#2 when excluding just one covariate is:
+\begin{singlespacing}
+<<propancgainstudyex2wo,eval=FALSE,echo=TRUE,size="small">>=
+@
+\end{singlespacing}
+The function used to estimate the models is:
+\begin{singlespacing}
+<<ex2bwo3,eval=FALSE,echo=TRUE,size="small">>=
+@
+\end{singlespacing}
+Similar code was used when excluding the sets of three covariates, and this code is available from the author. The code for Example \#2b is not included here. It was just changing a single line in the code, as discussed in the main body of the paper.
+
+\end{document}
+
